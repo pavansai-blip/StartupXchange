@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./db", () => ({
   createOffer: vi.fn(),
   createProject: vi.fn(),
+  deleteProjectForOwner: vi.fn(),
   getDashboardSummary: vi.fn(),
   getProject: vi.fn(),
   listOffersForBuyer: vi.fn(),
@@ -108,5 +109,18 @@ describe("marketplace procedures", () => {
     expect(saved[0]?.tech).toEqual(["React", "PostgreSQL"]);
     expect(mockedDb.listProjectsByOwner).toHaveBeenCalledWith(7);
     expect(mockedDb.listSavedProjects).toHaveBeenCalledWith(7);
+  });
+
+  it("deletes only a listing owned by the authenticated user", async () => {
+    mockedDb.deleteProjectForOwner.mockResolvedValue(true);
+    const caller = appRouter.createCaller(makeContext(sampleUser));
+    await expect(caller.projects.delete({ projectId: 42 })).resolves.toEqual({ deleted: true });
+    expect(mockedDb.deleteProjectForOwner).toHaveBeenCalledWith(42, 7);
+  });
+
+  it("rejects deletion when the listing is not owned by the user", async () => {
+    mockedDb.deleteProjectForOwner.mockResolvedValue(false);
+    const caller = appRouter.createCaller(makeContext(sampleUser));
+    await expect(caller.projects.delete({ projectId: 42 })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });

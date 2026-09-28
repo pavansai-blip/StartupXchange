@@ -153,6 +153,22 @@ export async function listProjectsByOwner(ownerId: number) {
   return db.select().from(projects).where(eq(projects.ownerId, ownerId)).orderBy(desc(projects.createdAt));
 }
 
+export async function deleteProjectForOwner(projectId: number, ownerId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not configured");
+
+  const owned = await db.select({ id: projects.id }).from(projects)
+    .where(and(eq(projects.id, projectId), eq(projects.ownerId, ownerId))).limit(1);
+  if (!owned[0]) return false;
+
+  await db.transaction(async tx => {
+    await tx.delete(offers).where(eq(offers.projectId, projectId));
+    await tx.delete(savedProjects).where(eq(savedProjects.projectId, projectId));
+    await tx.delete(projects).where(and(eq(projects.id, projectId), eq(projects.ownerId, ownerId)));
+  });
+  return true;
+}
+
 export async function listSavedProjects(userId: number) {
   const db = await getDb();
   if (!db) return [];

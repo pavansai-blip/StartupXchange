@@ -2,7 +2,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
-import { ArrowUpRight, BriefcaseBusiness, ChartNoAxesCombined, CheckCircle2, ChevronRight, CircleDollarSign, Clock3, FolderHeart, LayoutDashboard, LogOut, Plus, Send, Settings2, ShieldCheck, Store, UserRound } from "lucide-react";
+import { ArrowUpRight, BriefcaseBusiness, ChartNoAxesCombined, CheckCircle2, ChevronRight, CircleDollarSign, Clock3, FolderHeart, LayoutDashboard, LogOut, Plus, Send, Settings2, ShieldCheck, Store, Trash2, UserRound } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
 
@@ -29,6 +29,16 @@ export function WorkspaceContent({ embedded = false }: { embedded?: boolean }) {
   const listings = trpc.projects.mine.useQuery(undefined, { enabled: Boolean(user) });
   const saved = trpc.projects.saved.useQuery(undefined, { enabled: Boolean(user) });
   const offers = trpc.offers.mine.useQuery(undefined, { enabled: Boolean(user) });
+  const deleteProject = trpc.projects.delete.useMutation({
+    onSuccess: async () => {
+      await Promise.all([listings.refetch(), summary.refetch()]);
+    },
+  });
+  const handleDelete = (project: { id: number; name: string }) => {
+    if (deleteProject.isPending) return;
+    if (!window.confirm(`Delete “${project.name}”? This will remove the listing and its saved offers.`)) return;
+    deleteProject.mutate({ projectId: project.id });
+  };
 
   const displayName = user?.name || "Founder";
   const firstName = displayName.split(" ")[0];
@@ -59,7 +69,7 @@ export function WorkspaceContent({ embedded = false }: { embedded?: boolean }) {
       </nav>
 
       {tab === "overview" && <Overview summary={summary.data} listings={listings.data ?? []} offers={offers.data ?? []} savedCount={saved.data?.length ?? 0} loading={summary.isLoading} onTab={setTab} onMarketplace={() => setLocation("/")} />}
-      {tab === "listings" && <Listings listings={listings.data ?? []} loading={listings.isLoading} onMarketplace={() => setLocation("/")} />}
+      {tab === "listings" && <Listings listings={listings.data ?? []} loading={listings.isLoading} onMarketplace={() => setLocation("/")} onDelete={handleDelete} deletingId={deleteProject.isPending ? deleteProject.variables?.projectId : undefined} error={deleteProject.error?.message} />}
       {tab === "offers" && <Offers offers={offers.data ?? []} loading={offers.isLoading} />}
       {tab === "saved" && <SavedProjects projects={saved.data ?? []} loading={saved.isLoading} onMarketplace={() => setLocation("/")} />}
       {tab === "profile" && <Profile user={user} onLogout={logout} />}
@@ -86,8 +96,8 @@ function Overview({ summary, listings, offers, savedCount, loading, onTab, onMar
   </>;
 }
 
-function Listings({ listings, loading, onMarketplace }: { listings: any[]; loading: boolean; onMarketplace: () => void }) {
-  return <section className="workspace-panel workspace-full-panel"><div className="workspace-panel-head"><div><span className="workspace-eyebrow">SELLER WORKSPACE</span><h2>My listings</h2><p>Track the projects you have published and their acquisition status.</p></div><button className="workspace-primary-button" onClick={onMarketplace}><Plus size={15} /> List another project</button></div>{loading ? <LoadingState /> : listings.length === 0 ? <EmptyState icon={Store} title="Your portfolio is empty" copy="Start by listing a product, technology asset, or team." action="Open marketplace" onClick={onMarketplace} /> : <div className="workspace-table">{listings.map(project => <div className="workspace-table-row" key={project.id}><span className={`workspace-project-logo ${project.color}`}>{project.logo}</span><div className="workspace-table-main"><b>{project.name}</b><small>{project.startup} · {project.category}</small></div><span className="workspace-table-value">{project.price}<small>asking price</small></span><span className={`workspace-status ${project.status.toLowerCase().replaceAll(" ", "-")}`}>{project.status}</span><span className="workspace-table-date">{dateLabel(project.createdAt)}</span></div>)}</div>}</section>;
+function Listings({ listings, loading, onMarketplace, onDelete, deletingId, error }: { listings: any[]; loading: boolean; onMarketplace: () => void; onDelete: (project: { id: number; name: string }) => void; deletingId?: number; error?: string }) {
+  return <section className="workspace-panel workspace-full-panel"><div className="workspace-panel-head"><div><span className="workspace-eyebrow">SELLER WORKSPACE</span><h2>My listings</h2><p>Track the projects you have published and their acquisition status.</p></div><button className="workspace-primary-button" onClick={onMarketplace}><Plus size={15} /> List another project</button></div>{error && <div className="workspace-delete-error" role="alert">{error}</div>}{loading ? <LoadingState /> : listings.length === 0 ? <EmptyState icon={Store} title="Your portfolio is empty" copy="Start by listing a product, technology asset, or team." action="Open marketplace" onClick={onMarketplace} /> : <div className="workspace-table">{listings.map(project => <div className="workspace-table-row" key={project.id}><span className={`workspace-project-logo ${project.color}`}>{project.logo}</span><div className="workspace-table-main"><b>{project.name}</b><small>{project.startup} · {project.category}</small></div><span className="workspace-table-value">{project.price}<small>asking price</small></span><span className={`workspace-status ${project.status.toLowerCase().replaceAll(" ", "-")}`}>{project.status}</span><span className="workspace-table-date">{dateLabel(project.createdAt)}</span><button className="workspace-delete-button" aria-label={`Delete ${project.name}`} title="Delete listing" disabled={deletingId === project.id} onClick={() => onDelete({ id: project.id, name: project.name })}>{deletingId === project.id ? <span className="workspace-delete-spinner" /> : <Trash2 size={15} />}</button></div>)}</div>}</section>;
 }
 
 function Offers({ offers, loading }: { offers: any[]; loading: boolean }) {

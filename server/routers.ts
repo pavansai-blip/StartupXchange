@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { createOffer, createProject, getDashboardSummary, getProject, listOffersForBuyer, listProjects, listProjectsByOwner, listSavedProjects, toggleSavedProject } from "./db";
+import { createOffer, createProject, deleteProjectForOwner, getDashboardSummary, getProject, listOffersForBuyer, listProjects, listProjectsByOwner, listSavedProjects, toggleSavedProject } from "./db";
 
 const projectInput = z.object({
   name: z.string().min(2).max(160), startup: z.string().min(2).max(160), category: z.string().min(2).max(120), description: z.string().min(20),
@@ -30,6 +31,11 @@ export const appRouter = router({
       return row ? { ...row, tech: safeJsonArray(row.tech) } : null;
     }),
     mine: protectedProcedure.query(async ({ ctx }) => (await listProjectsByOwner(ctx.user.id)).map(row => ({ ...row, tech: safeJsonArray(row.tech) }))),
+    delete: protectedProcedure.input(z.object({ projectId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const deleted = await deleteProjectForOwner(input.projectId, ctx.user.id);
+      if (!deleted) throw new TRPCError({ code: "NOT_FOUND", message: "Listing not found or not owned by this account." });
+      return { deleted: true } as const;
+    }),
     saved: protectedProcedure.query(async ({ ctx }) => (await listSavedProjects(ctx.user.id)).map(row => ({ ...row, tech: safeJsonArray(row.tech) }))),
     save: protectedProcedure.input(z.object({ projectId: z.number().int().positive() })).mutation(({ ctx, input }) => toggleSavedProject(ctx.user.id, input.projectId)),
   }),
