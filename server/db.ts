@@ -147,6 +147,22 @@ export async function listOffersForBuyer(buyerId: number) {
   return db.select().from(offers).where(eq(offers.buyerId, buyerId)).orderBy(desc(offers.createdAt));
 }
 
+export async function listProjectsByOwner(ownerId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(projects).where(eq(projects.ownerId, ownerId)).orderBy(desc(projects.createdAt));
+}
+
+export async function listSavedProjects(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({ project: projects }).from(savedProjects)
+    .innerJoin(projects, eq(savedProjects.projectId, projects.id))
+    .where(eq(savedProjects.userId, userId))
+    .orderBy(desc(savedProjects.createdAt));
+  return rows.map(row => row.project);
+}
+
 export async function toggleSavedProject(userId: number, projectId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database is not configured");

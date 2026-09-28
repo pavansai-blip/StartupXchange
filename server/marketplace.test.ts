@@ -7,6 +7,8 @@ vi.mock("./db", () => ({
   getProject: vi.fn(),
   listOffersForBuyer: vi.fn(),
   listProjects: vi.fn(),
+  listProjectsByOwner: vi.fn(),
+  listSavedProjects: vi.fn(),
   toggleSavedProject: vi.fn(),
 }));
 
@@ -94,5 +96,17 @@ describe("marketplace procedures", () => {
     expect(saved).toEqual({ saved: true });
     expect(mockedDb.createOffer).toHaveBeenCalledWith(expect.objectContaining({ buyerId: 7, projectId: 11 }));
     expect(mockedDb.toggleSavedProject).toHaveBeenCalledWith(7, 11);
+  });
+
+  it("returns the authenticated user's workspace listings and saved projects", async () => {
+    mockedDb.listProjectsByOwner.mockResolvedValue([sampleProject]);
+    mockedDb.listSavedProjects.mockResolvedValue([sampleProject]);
+    const caller = appRouter.createCaller(makeContext(sampleUser));
+    const mine = await caller.projects.mine();
+    const saved = await caller.projects.saved();
+    expect(mine[0]?.name).toBe("AIFlow");
+    expect(saved[0]?.tech).toEqual(["React", "PostgreSQL"]);
+    expect(mockedDb.listProjectsByOwner).toHaveBeenCalledWith(7);
+    expect(mockedDb.listSavedProjects).toHaveBeenCalledWith(7);
   });
 });
